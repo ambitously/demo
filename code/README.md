@@ -4,20 +4,41 @@
 
 ```
 code/
-├── config.py                    # ⭐ 配置文件 - 修改模型/地址等参数
-├── ollama_client.py             # Ollama LLM 客户端封装
-├── prompt_templates.py          # ⭐ 所有Prompt模板（System + User + 解析）
-├── dialog_handler_template.py   # ⭐ 核心处理器模板 - 你需要填写的代码
-└── test_ollama.py               # Ollama 连接测试脚本
+├── config.py                    # ⭐ 配置文件
+├── ollama_client.py             # ① Ollama LLM 客户端封装
+├── prompt_templates.py          # ② 所有Prompt模板
+├── dialog_handler_template.py   # ③ 处理器模板(基础版)
+│
+├── format_healer.py             # V2  格式修复器
+├── action_filter.py             # V3  SayCan动作过滤器
+├── task_decomposer.py           # V4  任务分解器
+├── role_assigner.py             # V5  动态角色分配器
+├── reflection_engine.py         # V6  反思引擎
+├── experience_memory.py         # V7  经验记忆库
+├── loop_detector.py             # V8  循环检测器
+├── candidate_voter.py           # V9  候选投票器
+├── evaluation_logger.py         # V10 评估日志系统
+│
+├── integrated_handler.py        # V10 ⭐ 最终集成处理器(推荐)
+├── test_ollama.py               # Ollama连接测试
+└── README.md                    # 本文件
 ```
 
-| 文件 | 作用 | 你需要在云实例上运行吗？ | 需要修改吗？ |
-|------|------|:---:|:---:|
-| `config.py` | 配置模型名称、API地址等 | ✅ | ⚠️ 需要（改为你的模型名） |
-| `ollama_client.py` | 封装 LLM API 调用 | ✅ | ❌ 不需要 |
-| `prompt_templates.py` | 所有 Prompt 模板 | ✅ | ⚠️ 根据效果调整 |
-| `dialog_handler_template.py` | 处理器核心代码 | ✅ | ⚠️ 需要（集成到框架） |
-| `test_ollama.py` | 测试 Ollama 连接 | 本地和云端都可以 | ❌ 不需要 |
+| 文件 | 版本 | 借鉴来源 | 一句话描述 |
+|------|:---:|------|------|
+| `config.py` | - | - | 配置模型/地址/路径 |
+| `ollama_client.py` | V1 | Ollama OpenAI Compat | LLM API调用封装 |
+| `prompt_templates.py` | V1 | Prompt Engineering | 6任务完整Prompt模板 |
+| `format_healer.py` | V2 | Toolformer / JSON repair | 两层格式自动修复 |
+| `action_filter.py` | V3 | Google SayCan | 动作合法性过滤 |
+| `task_decomposer.py` | V4 | LLM-Planner / CoT | 长程任务→子目标 |
+| `role_assigner.py` | V5 | RoCo / AutoGen | 动态角色分配 |
+| `reflection_engine.py` | V6 | Inner Monologue / Reflexion | 失败反思重规划 |
+| `experience_memory.py` | V7 | Voyager / Reflexion | Few-Shot经验记忆 |
+| `loop_detector.py` | V8 | Voyager | 三种策略循环检测 |
+| `candidate_voter.py` | V9 | Self-Consistency | 多候选投票 |
+| `evaluation_logger.py` | V10 | AgentBench / HELM | 全自动报告生成 |
+| **`integrated_handler.py`** | **⭐V10** | **以上全部** | **统一集成入口** |
 
 ---
 
