@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+llm_logs/
+*.log
+results/
+
+# Model cache
+ollama_models/
+
+# Experience memory (generated at runtime)
+experience_memory.json
+
+# Large files
+*.gguf
+*.bin
+*.safetensors
+*.pth
+*.ckpt
+
+# Jupyter
+.ipynb_checkpoints/
