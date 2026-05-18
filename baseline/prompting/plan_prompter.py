@@ -161,6 +161,83 @@ class SingleThreadPrompter:
         task_name = self.env.__class__.__name__
         if task_name == "SweepTask":
             return self._compose_sweep_heuristic(obs)
+        if task_name == "SortOneBlockTask":
+            return self._compose_sort_heuristic(obs)
+        return None
+
+    def _compose_sort_heuristic(self, obs: EnvState) -> str:
+        """Assembly-line policy for SortOneBlockTask.
+
+        The handoff panels are panel3 and panel5. We move one cube at a time to
+        minimize multi-arm collisions: yellow -> panel6, blue -> panel2, then
+        pink -> panel4. Each move is made only by a robot that can reach both the
+        source and destination panel.
+        """
+        agents = ["Alice", "Bob", "Chad"]
+        actions = {agent: "WAIT" for agent in agents}
+
+        targets = [
+            ("yellow_trapezoid", "panel6"),
+            ("blue_square", "panel2"),
+            ("pink_polygon", "panel4"),
+        ]
+
+        for cube, target in targets:
+            current = self.env.get_cube_panel(obs, cube)
+            if current == target:
+                continue
+            move = self._next_sort_move(cube, current)
+            if move is None:
+                continue
+            agent, destination = move
+            actions[agent] = f"PICK {cube} PLACE {destination}"
+            break
+
+        return "EXECUTE\n" + "".join(
+            f"NAME {agent} ACTION {actions[agent]}\n" for agent in agents
+        )
+
+    def _next_sort_move(self, cube: str, current_panel: str) -> Optional[Tuple[str, str]]:
+        panel_idx = int(current_panel.replace("panel", ""))
+        if cube == "yellow_trapezoid":
+            if current_panel == "panel6":
+                return None
+            if panel_idx <= 2:
+                return "Alice", "panel3"
+            if current_panel == "panel3":
+                return "Bob", "panel5"
+            if panel_idx == 4:
+                return "Bob", "panel5"
+            if current_panel == "panel5":
+                return "Chad", "panel6"
+            return "Chad", "panel6"
+
+        if cube == "blue_square":
+            if current_panel == "panel2":
+                return None
+            if panel_idx >= 6:
+                return "Chad", "panel5"
+            if current_panel == "panel5":
+                return "Bob", "panel3"
+            if current_panel == "panel4":
+                return "Bob", "panel3"
+            if current_panel == "panel3":
+                return "Alice", "panel2"
+            return "Alice", "panel2"
+
+        if cube == "pink_polygon":
+            if current_panel == "panel4":
+                return None
+            if panel_idx <= 2:
+                return "Alice", "panel3"
+            if current_panel == "panel3":
+                return "Bob", "panel4"
+            if panel_idx >= 6:
+                return "Chad", "panel5"
+            if current_panel == "panel5":
+                return "Bob", "panel4"
+            return "Bob", "panel4"
+
         return None
 
     def _compose_sweep_heuristic(self, obs: EnvState) -> str:
