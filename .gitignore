@@ -53,3 +53,14 @@ code_v1.0.zip
 AI建议.pdf
 AI建议.txt
 README.md
+
+# Baseline generated artifacts
+baseline.zip
+baseline/cite/
+baseline/output/
+baseline/**/*.jpg
+baseline/**/*.jpeg
+baseline/**/*.msh
+baseline/**/*.obj
+baseline/**/*.png
+baseline/**/*.stl
