@@ -18,3 +18,4 @@
 | 2 | SortTask 装配线 handoff coordinator：一次只移动一个 cube，经 panel3/panel5 中转，避免不可达与多臂冲突 | 聚合 4/6（新增 sort 1/1，steps=5）；单测 sort 1/1，elapsed=122.38s | 成功提点 | 原 LLM 混淆“机器人目标”和“cube目标”；硬编码 cube->target 与 reach handoff 后可稳定完成。pink 从 panel3 应由 Bob 直接放 panel4，不能让 Chad 去 panel5。 |
 | fail-pack-1 | PackTask 双机器人 lane/path 启发式：前后分 lane 同步 PICK/PLACE，并尝试高空入箱路径 | 单测 pack 0/1；最好进展为前两轮 PICK/PLACE 可执行，但后续物体滑出/目标过低导致 table/bin collision | 失败 | Pack 的难点不只是路径均匀，放置姿态和 bin 内稳定性更关键；未验证成功前已回滚代码，避免影响基线。 |
 | 3 | RopeTask 双阶段 tool coordinator：同步 PICK 两端，然后用 front/back 高空通道同步 PUT 到 groove 两端 | 单测 rope 1/1，steps=1，elapsed=228.79s | 成功提点 | 原 LLM 总是复制起点导致 PATH 不均匀；确定性 20/40/60/80 插值解决 PICK，PUT 必须 z≈0.53 绕过 obstacle wall，低空第一 waypoint 会撞 wall。 |
+| 4 | PackTask 阶段机 + WAIT 让渡：前四轮双机器人并行装箱，最后两件改为单机器人接管，配合解析器支持 PICK+PLACE 及 WAIT | 单测 pack 1/1，steps=7，elapsed=507.99s | 成功提点 | 先前失败来自最后两件物体的 goal collision；通过允许 WAIT、序列化最后两件、并把 bread/cereal 交给单机器人接管，成功完成。 |

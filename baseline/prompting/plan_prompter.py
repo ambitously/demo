@@ -181,8 +181,46 @@ class SingleThreadPrompter:
         }
         actions = {}
         reserved = set()
+        remaining = [
+            item for item in getattr(self.env, "item_names", [])
+            if "bin_inside" not in obs.objects[item].contacts
+        ]
+        held_by = {agent: self._pack_held_item(obs, agent) for agent in ["Alice", "Bob"]}
+
+        # The final flat/tall pair (bread/cereal) starts close together near the
+        # table center.  Doing it simultaneously causes goal collisions, so once
+        # only two items remain we serialize actions and let the other robot WAIT.
+        if len(remaining) <= 2:
+            active_agent = None
+            active_item = None
+            for agent, held in held_by.items():
+                if held is not None:
+                    active_agent, active_item = agent, held
+                    break
+            if active_agent is None:
+                if "bread" in remaining:
+                    active_agent, active_item = "Alice", "bread"
+                elif "cereal" in remaining:
+                    active_agent, active_item = "Bob", "cereal"
+                elif len(remaining) > 0:
+                    active_item = remaining[0]
+                    active_agent = "Alice" if active_item in ["apple", "banana", "bread"] else "Bob"
+            for agent in ["Alice", "Bob"]:
+                held = held_by[agent]
+                if agent == active_agent:
+                    if held is not None:
+                        slot = slot_map[held]
+                        actions[agent] = f"PLACE {held} {slot} PATH {self._pack_place_path(obs, agent, slot)}"
+                    else:
+                        actions[agent] = f"PICK {active_item} PATH {self._pack_pick_path(obs, agent, active_item)}"
+                else:
+                    actions[agent] = f"WAIT PATH {self._pack_wait_path(obs, agent)}"
+            return "EXECUTE\n" + "".join(
+                f"NAME {agent} ACTION {actions[agent]}\n" for agent in ["Alice", "Bob"]
+            )
+
         for agent in ["Alice", "Bob"]:
-            held = self._pack_held_item(obs, agent)
+            held = held_by[agent]
             if held is not None:
                 slot = slot_map[held]
                 path = self._pack_place_path(obs, agent, slot)
@@ -231,6 +269,11 @@ class SingleThreadPrompter:
         high_target = target.copy()
         high_target[2] = 0.72
         return self._format_interpolated_path_with_min_z(start, high_target, min_z=0.62)
+
+    def _pack_wait_path(self, obs: EnvState, agent: str) -> str:
+        pos = self._agent_ee_pos(obs, agent)
+        point = f"({pos[0]:.2f},{pos[1]:.2f},{pos[2]:.2f})"
+        return "[" + ",".join([point] * 4) + "]"
 
     def _compose_pack_compact_heuristic(self, obs: EnvState) -> str:
         """Pack two groceries per round using compact PICK+PLACE tool calls.
