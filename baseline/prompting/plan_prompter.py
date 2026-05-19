@@ -163,7 +163,107 @@ class SingleThreadPrompter:
             return self._compose_sweep_heuristic(obs)
         if task_name == "SortOneBlockTask":
             return self._compose_sort_heuristic(obs)
+        if task_name == "MoveRopeTask":
+            return self._compose_rope_heuristic(obs)
         return None
+
+    def _compose_rope_heuristic(self, obs: EnvState) -> str:
+        """Two-stage rope policy: synchronously pick both ends, then put them in groove.
+
+        The LLM repeatedly creates uneven PATHs for rope. This deterministic
+        coordinator emits validated tool calls with evenly spaced waypoints.
+        """
+        alice_held = self._rope_held_end(obs, "Alice")
+        bob_held = self._rope_held_end(obs, "Bob")
+        if alice_held is None or bob_held is None:
+            alice_obj, bob_obj = self._assign_rope_pick_ends(obs)
+            alice_path = self._rope_path_to_target(obs, "Alice", alice_obj, lift=0.04)
+            bob_path = self._rope_path_to_target(obs, "Bob", bob_obj, lift=0.04)
+            return (
+                "EXECUTE\n"
+                f"NAME Alice ACTION PICK {alice_obj} PATH {alice_path}\n"
+                f"NAME Bob ACTION PICK {bob_obj} PATH {bob_path}\n"
+            )
+
+        alice_slot, bob_slot = self._assign_rope_put_slots(alice_held, bob_held)
+        alice_path = self._rope_put_path(obs, "Alice", alice_slot)
+        bob_path = self._rope_put_path(obs, "Bob", bob_slot)
+        return (
+            "EXECUTE\n"
+            f"NAME Alice ACTION PUT {alice_held} {alice_slot} PATH {alice_path}\n"
+            f"NAME Bob ACTION PUT {bob_held} {bob_slot} PATH {bob_path}\n"
+        )
+
+    def _rope_held_end(self, obs: EnvState, agent: str) -> Optional[str]:
+        robot_name = self.env.robot_name_map_inv[agent]
+        contacts = getattr(obs, robot_name).contacts
+        contact_text = ",".join(contacts)
+        if "rope_front_end" in contacts or "CB0" in contact_text:
+            return "rope_front_end"
+        if "rope_back_end" in contacts or "CB24" in contact_text:
+            return "rope_back_end"
+        return None
+
+    def _assign_rope_pick_ends(self, obs: EnvState) -> Tuple[str, str]:
+        ends = ["rope_front_end", "rope_back_end"]
+        alice_pos = self._agent_ee_pos(obs, "Alice")
+        bob_pos = self._agent_ee_pos(obs, "Bob")
+        alice_front = np.linalg.norm(alice_pos[:2] - self.env.get_target_pos("Alice", "rope_front_end")[:2])
+        bob_front = np.linalg.norm(bob_pos[:2] - self.env.get_target_pos("Bob", "rope_front_end")[:2])
+        # Assign the front end to the closer robot; the other robot takes the other end.
+        if alice_front <= bob_front:
+            return ends[0], ends[1]
+        return ends[1], ends[0]
+
+    def _assign_rope_put_slots(self, alice_end: str, bob_end: str) -> Tuple[str, str]:
+        # Preserve left-to-right rope orientation in the final groove.
+        end_to_slot = {
+            "rope_front_end": "groove_left_end",
+            "rope_back_end": "groove_right_end",
+        }
+        return end_to_slot[alice_end], end_to_slot[bob_end]
+
+    def _agent_ee_pos(self, obs: EnvState, agent: str) -> np.ndarray:
+        robot_name = self.env.robot_name_map_inv[agent]
+        return np.array(getattr(obs, robot_name).ee_xpos, dtype=float)
+
+    def _rope_path_to_target(self, obs: EnvState, agent: str, target_name: str, lift: float = 0.05) -> str:
+        start = self._agent_ee_pos(obs, agent)
+        target = np.array(self.env.get_target_pos(agent, target_name), dtype=float)
+        safe_target = target.copy()
+        safe_target[2] = min(max(target[2] + lift, 0.32), 0.53)
+        return self._format_interpolated_path(start, safe_target, n=4)
+
+    def _rope_put_path(self, obs: EnvState, agent: str, slot_name: str) -> str:
+        # Move the held rope end high over/around the obstacle wall before the
+        # parser appends the final groove target. Separate front/back lanes
+        # reduce robot-robot and obstacle collisions.
+        target = np.array(self.env.get_target_pos(agent, slot_name), dtype=float)
+        if agent == "Alice":
+            waypoints = [
+                (-0.90, 0.35, 0.53),
+                (-0.55, 0.30, 0.53),
+                (-0.20, 0.35, 0.53),
+                (target[0] - 0.08, target[1], 0.50),
+            ]
+        else:
+            waypoints = [
+                (-0.35, 0.65, 0.53),
+                (0.00, 0.70, 0.53),
+                (0.50, 0.65, 0.53),
+                (target[0] - 0.08, target[1], 0.50),
+            ]
+        return "[" + ",".join(
+            f"({x:.2f},{y:.2f},{z:.2f})" for x, y, z in waypoints
+        ) + "]"
+
+    def _format_interpolated_path(self, start: np.ndarray, target: np.ndarray, n: int = 4) -> str:
+        points = []
+        # Feedback checks start + PATH + parser target, so avoid including target itself.
+        for frac in np.linspace(1 / (n + 1), n / (n + 1), n):
+            pos = start[:3] + frac * (target[:3] - start[:3])
+            points.append(f"({pos[0]:.2f},{pos[1]:.2f},{pos[2]:.2f})")
+        return "[" + ",".join(points) + "]"
 
     def _compose_sort_heuristic(self, obs: EnvState) -> str:
         """Assembly-line policy for SortOneBlockTask.
